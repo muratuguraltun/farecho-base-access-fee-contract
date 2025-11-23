@@ -5,13 +5,6 @@ This repository documents the smart contract and pattern I use to manage access 
 - Mini-app name: **Farecho**
 - Mini-app link (Farcaster): https://farcaster.xyz/miniapps/U7FUwxLHV7p9/farecho
 
-The goal of this setup is simple:
-
-- Users log in to Farecho, a Farcaster mini-app.
-- To access the app, they pay a fixed onchain fee (`0.00005 ETH` on Base).
-- Instead of sending this fee directly to my EOA wallet, it is routed through a smart contract.
-- This creates a transparent, onchain record of usage, revenue, and real builder activity on Base.
-
 ---
 
 ## Why I built this
@@ -24,41 +17,19 @@ Originally, Farecho was already live:
 
 This worked, but had some limitations:
 
-1. **No clear onchain “builder footprint”**  
-   Payments looked like random transfers instead of structured smart contract activity.
+1. No clear onchain "builder footprint"
+2. Hard to track usage & revenue
+3. Not future-proof
 
-2. **Hard to track usage and revenue**  
-   Without events or contract logs, there was no clear way to see analytics.
-
-3. **Not future-proof**  
-   Feature changes (like price tiers or subscriptions) would eventually require a contract.
-
-So I created a simple and extensible contract-based pattern:
-
-> A minimal **AccessFeeManager** contract that receives all Farecho access fees and allows the owner to withdraw the balance later.
-
----
-
-## How it works (Farecho flow)
-
-1. The user opens **Farecho** inside Farcaster and logs in using the native Farcaster/Neynar login flow.
-2. Before full access, the user pays a fixed access fee of `0.00005 ETH`.
-3. Instead of sending the payment directly to my wallet, the app now calls:
-   - `to = AccessFeeManager` contract  
-   - `value = 0.00005 ETH`  
-   - `data = payAccess()`
-4. The fee is stored safely in the contract.
-5. I can withdraw all collected fees at any time using `withdrawAll()`.
-
-This creates a clean onchain footprint and transparent usage tracking.
+So I created a simple contract pattern to make the flow onchain and transparent.
 
 ---
 
 ## Contract details
 
-- **Network:** Base mainnet  
-- **Contract name:** `AccessFeeManager`  
-- **Contract address:** `0x12dbC9a0B45d735d82895a952F112Ee380a16671`
+**Network:** Base mainnet  
+**Contract name:** AccessFeeManager  
+**Contract address:** `0x12dbC9a0B45d735d82895a952F112Ee380a16671`
 
 ### Contract source
 
@@ -90,61 +61,66 @@ contract AccessFeeManager {
         emit Withdraw(owner, balance);
     }
 }
-Key functions overview
-🔹 payAccess()
+```
 
-Accepts exactly 0.00005 ETH
+---
 
-Emits AccessPaid
+## Key functions overview
 
-Called automatically when users enter Farecho
+### 🔹 payAccess()
+- Accepts exactly **0.00005 ETH**
+- Emits **AccessPaid**
+- Called automatically inside Farecho
 
-🔹 withdrawAll()
+### 🔹 withdrawAll()
+- Only deployer can call it
+- Transfers 100% of contract balance
 
-Only the deployer (owner) can call it
+---
 
-Transfers 100% of contract balance to owner
+## Integration with Farecho
 
-Integration with Farecho (mini-app)
-
-Farecho mini-app link:
+**Farecho mini-app link:**  
 https://farcaster.xyz/miniapps/U7FUwxLHV7p9/farecho
 
-The integration required only one change:
+Only 1 change was required:
 
-Instead of sending a plain ETH transfer to my wallet,
-Farecho now triggers a contract call to payAccess() with 0.00005 ETH.
+❗ Instead of sending ETH directly to my wallet,  
+Farecho now calls `payAccess()` with **0.00005 ETH**.
 
-Everything else in the mini-app stays the same:
+Everything else stayed the same:
+- Same Farcaster login flow  
+- Same UI  
+- Same user experience  
 
-Same Farcaster login flow
+---
 
-Same UI
+## Notes for developers
 
-Same “click → sign → enter” experience
+- Contract must run on Base mainnet  
+- Owner = deployer  
+- Don’t expose private keys  
+- Always test with small amounts  
+- Only replace where payment is triggered  
 
-Just a different onchain target.
+---
 
-Notes for others who want to use this pattern
+## Future enhancements
 
-Contract assumes Base mainnet
+- Adjustable fees  
+- Free access list  
+- Subscription model  
+- Analytics via emitted events  
 
-owner = the wallet that deployed the contract
+---
 
-Never expose private keys or mnemonics
+## TR Özet
 
-Test with small amounts first
+Farecho’ya giriş yapan kullanıcılar `0.00005 ETH` öder.  
+Bu ücret doğrudan cüzdana değil, önce kontrata gider.  
+Ben `withdrawAll()` ile toplu çekerim.
 
-Keep login/auth logic separate from payment logic
-
-Only replace the payment target, not the authentication flow
-
-Future enhancements
-
-Adjustable pricing
-
-Multiple access tiers
-
-Free/discounted access lists
-
-Dashboard with analytics based on AccessPaid events
+Bu sistem:
+- Onchain builder izi bırakır  
+- Geliri şeffaf yapar  
+- Gelecekte abonelik ve fiyatlandırma eklemeyi kolaylaştırır  
